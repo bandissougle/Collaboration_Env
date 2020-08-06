@@ -1,0 +1,92 @@
+version: '3'
+
+
+services:
+    nginx:
+        image: nginx:latest
+        ports: 
+            - "443:443"
+        networks:
+            resnextcloud:
+                ipv4_address: 172.22.100.20
+                aliases: 
+                    - web
+        volumes: 
+            - "./Config/nginx.conf:/etc/nginx/nginx.conf:ro"
+            - "./Config/cakey.pem:/etc/nginx/clef.key:ro"
+            - "./Config/cacert.pem:/etc/nginx/certif.crt:ro"
+        depends_on: 
+            - myadm
+            - nextcloud
+    base:
+        image: mysql:5.7.27
+        volumes: 
+            - "./Data/mysql:/var/lib/mysql"
+        networks:
+            resnextcloud:
+                ipv4_address: 172.22.100.21
+                aliases: 
+                    - mysql
+                    - base
+                    - bdd
+        environment: 
+            - MYSQL_ROOT_PASSWORD=passroot
+            - MYSQL_DATABASE=nc_base
+            - MYSQL_USER=nc_user
+            - MYSQL_PASSWORD=nc_pass
+    myadm:
+        image: phpmyadmin/phpmyadmin
+        depends_on: 
+            - base
+        networks: 
+            resnextcloud:
+                aliases: 
+                    - phpmyadmin
+                    - pma
+        environment: 
+            - PMA_HOST=172.22.100.21
+            - PMA_ABSOLUTE_URI=http://192.168.1.107/phpmyadmin
+    nextcloud:
+        image: nextcloud
+        depends_on: 
+            - base
+            - onlyoffice
+        volumes: 
+            - "./Data/nextcloud:/var/www/html/data"
+            - "./Config/nextcloud:/var/www/html/config"
+        networks: 
+            resnextcloud:
+                aliases: 
+                    - nextcloud
+                    - files
+        environment: 
+            - MYSQL_HOST=base
+            - MYSQL_DATABASE=nc_base
+            - MYSQL_USER=nc_user
+            - MYSQL_PASSWORD=nc_pass
+            - NEXTCLOUD_ADMIN_USER=chef
+            - NEXTCLOUD_ADMIN_PASSWORD=compose
+            - NEXTCLOUD_UPDATE=1
+            - NEXTCLOUD_TRUSTED_DOMAINS=192.168.1.107
+    onlyoffice:
+        image: onlyoffice/documentserver
+        networks:
+            resnextcloud:
+                #ipv4_address: 172.22.100.26
+                aliases: 
+                    - office
+        environment: 
+            - ONLYOFFICE_DATA_CONTAINER=true
+            - FORCE_SSL=true
+            - CERT_FOLDER=/certs/
+        stdin_open: true
+        restart: always
+        volumes:
+            - "./Data/onlyoffice/DocumentServer/data:/var/www/onlyoffice/Data"
+            - "./Data/onlyoffice/DocumentServer/data/certs/onlyoffice.pem:/certs/onlyoffice.pem:ro"
+networks:
+    resnextcloud:
+        ipam: 
+            driver: default
+            config:
+                - subnet: "172.22.100.0/24"
